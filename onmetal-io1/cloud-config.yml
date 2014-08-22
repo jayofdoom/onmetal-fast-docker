@@ -95,6 +95,8 @@ coreos:
         ExecStart=/usr/local/bin/lsi_format.sh
 
     - name: lsi-docker-mount.service
+      command: start
+      content: |
         [Unit]
         Description=Add mounts for lsi cards into /var/lib/docker
         Before=docker.service
