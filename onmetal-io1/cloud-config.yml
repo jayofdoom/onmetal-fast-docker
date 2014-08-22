@@ -6,10 +6,11 @@ write_files:
     content: |
       kernel.nmi_watchdog=0
 
-  - path: /usr/local/bin/add_raid_uuid_to_fstab.sh
+  - path: /root/bin/add_raid_uuid_to_fstab.sh
+    permissions: 0755
     content: |
       #!/bin/bash
-      UUID=`lsblk -o NAME,TYPE,UUID | grep raid0 | awk '{print $3}'` | head -n1
+      UUID=`lsblk -o NAME,TYPE,UUID | grep raid0 | awk '{print $3}' | head -n1`
       grep -q $UUID /etc/fstab && echo "Device already in fstab" && exit 0
       echo 'UUID=$UUID /var/lib/docker ext4 defaults,relatime,errors=remount-ro 0 1' >> /etc/fstab
       mkdir -p /var/lib/docker
@@ -17,17 +18,17 @@ write_files:
       chown root:root /var/lib/docker
       chmod 700 /var/lib/docker
 
-  - path: /usr/local/bin/lsi_device_paths.sh
+  - path: /root/bin/lsi_device_paths.sh
     permissions: 0755
     content: |
       #!/bin/bash
       lsblk -i -o KNAME,MODEL | grep NWD-BLP4-1600 | awk '{print $1}'
 
-  - path: /usr/local/bin/lsi_settings.sh
+  - path: /root/bin/lsi_settings.sh
     permissions: 0755
     content: |
       #!/bin/bash
-      for blockdev in `/usr/local/bin/lsi_device_paths.sh`; do
+      for blockdev in `/root/bin/lsi_device_paths.sh`; do
           echo "Applying SSD settings to ${blockdev}"
           echo noop | tee /sys/block/${blockdev}/queue/scheduler
           echo 4096 | tee /sys/block/${blockdev}/queue/nr_requests
@@ -36,7 +37,7 @@ write_files:
           echo 512 | tee /sys/block/${blockdev}/device/queue_depth
       done
 
-  - path: /usr/local/bin/lsi_format.sh
+  - path: /root/bin/lsi_format.sh
     permissions: 0755
     content: |
       #!/bin/bash -e
@@ -57,7 +58,7 @@ write_files:
       [ -b "/dev/md0" ] && mdadm --stop /dev/md0
       
       BLOCKS=""
-      for blockdev in `/opt/bin/lsi-cards-list`; do
+      for blockdev in `/root/bin/lsi_device_paths.sh`; do
         BLOCKS="${BLOCKS} /dev/${blockdev}"
       done
 
@@ -80,7 +81,7 @@ coreos:
         [Service]
         Type=oneshot
         RemainAfterExit=yes
-        ExecStart=/usr/local/bin/lsi_settings.sh
+        ExecStart=/root/bin/lsi_settings.sh
 
     - name: lsi-initial-setup.service
       command: start
@@ -92,7 +93,7 @@ coreos:
         [Service]
         Type=oneshot
         RemainAfterExit=yes
-        ExecStart=/usr/local/bin/lsi_format.sh
+        ExecStart=/root/bin/lsi_format.sh %m
 
     - name: lsi-docker-mount.service
       command: start
@@ -105,4 +106,4 @@ coreos:
         [Service]
         Type=oneshot
         RemainAfterExit=yes
-        ExecStart=/usr/local/bin/add_raid_uuid_to_fstab.sh
+        ExecStart=/root/bin/add_raid_uuid_to_fstab.sh
