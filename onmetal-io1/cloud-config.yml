@@ -1,0 +1,106 @@
+#cloud-config
+
+write_files:
+  - path: /etc/sysctl.d/nmi_watchdog.conf
+    permissions: 0644
+    content: |
+      kernel.nmi_watchdog=0
+
+  - path: /usr/local/bin/add_raid_uuid_to_fstab.sh
+    content: |
+      #!/bin/bash
+      UUID=`lsblk -o NAME,TYPE,UUID | grep raid0 | awk '{print $3}'` | head -n1
+      grep -q $UUID /etc/fstab && echo "Device already in fstab" && exit 0
+      echo 'UUID=$UUID /var/lib/docker ext4 defaults,relatime,errors=remount-ro 0 1' >> /etc/fstab
+      mkdir -p /var/lib/docker
+      mount /var/lib/docker
+      chown root:root /var/lib/docker
+      chmod 700 /var/lib/docker
+
+  - path: /usr/local/bin/lsi_device_paths.sh
+    permissions: 0755
+    content: |
+      #!/bin/bash
+      lsblk -i -o KNAME,MODEL | grep NWD-BLP4-1600 | awk '{print $1}'
+
+  - path: /usr/local/bin/lsi_settings.sh
+    permissions: 0755
+    content: |
+      #!/bin/bash
+      for blockdev in `/usr/local/bin/lsi_device_paths.sh`; do
+          echo "Applying SSD settings to ${blockdev}"
+          echo noop | tee /sys/block/${blockdev}/queue/scheduler
+          echo 4096 | tee /sys/block/${blockdev}/queue/nr_requests
+          echo 1024 | tee /sys/block/${blockdev}/queue/max_sectors_kb
+          echo 1 | tee /sys/block/${blockdev}/queue/nomerges
+          echo 512 | tee /sys/block/${blockdev}/device/queue_depth
+      done
+
+  - path: /usr/local/bin/lsi_format.sh
+    permissions: 0755
+    content: |
+      #!/bin/bash -e
+      
+      fail() {
+        echo $@
+        exit 1
+      }
+      
+      # Machine ID is "free" from systemd. This also is bonus protection
+      # against someone running this outside of systemd and breaking their machine.
+      MACHINE_ID=${1}
+      [ -z "$MACHINE_ID" ] && fail "error; machine ID should be passed in"
+      
+      GFILE="/etc/${MACHINE_ID}.raid-setup"
+      [ -e "${GFILE}" ] && echo "${GFILE} exists, raid already setup?" && exit 0
+      
+      [ -b "/dev/md0" ] && mdadm --stop /dev/md0
+      
+      BLOCKS=""
+      for blockdev in `/opt/bin/lsi-cards-list`; do
+        BLOCKS="${BLOCKS} /dev/${blockdev}"
+      done
+
+      yes | mdadm --create --verbose -f /dev/md0 --level=stripe --raid-devices=2 ${BLOCKS}
+      mkfs.ext4 /dev/md0
+      touch /etc/${MACHINE_ID}.raid-setup
+
+
+coreos:
+  units:
+    - name: systemd-sysctl.service
+      command: restart
+
+    - name: lsi-settings.service
+      command: start
+      content: |
+        [Unit]
+        Description=Configure performance settings for LSI cards
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/bin/lsi_settings.sh
+
+    - name: lsi-initial-setup.service
+      command: start
+      content: |
+        [Unit]
+        Description=Format and raid LSI cards if not already done
+        After=lsi-settings.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/bin/lsi_format.sh
+
+    - name: lsi-docker-mount.service
+        [Unit]
+        Description=Add mounts for lsi cards into /var/lib/docker
+        Before=docker.service
+        After=lsi-initial-setup.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/local/bin/add_raid_uuid_to_fstab.sh
