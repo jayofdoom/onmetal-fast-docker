@@ -1,0 +1,33 @@
+onmetal-fast-docker
+===================
+
+This is an effort to create cloud-config.yml files that utilize some of the
+more performant parts of OnMetal flavors for CoreOS.
+
+Usage
+-----
+To use these, simply append `--user-data /path/to/cloud-config.yml` to your 
+nova boot command in order to pass in your cloud-config, via configdrive, to
+CoreOS.
+
+onmetal-io1
+-----------
+
+`onmetal-io1/cloud-config.yml` configures the two LSI Warpdrive Nytro PCIe
+flash cards in a Linux MD RAID 0, with BTRFS filesystem, and mounts them at
+/var/lib/docker before the docker daemon is allowed to start. This configures
+your server so any images downloaded and containers run go onto the fast PCIe
+storage.
+
+Example:
+
+This example assumes you already have python-novaclient configured and pointed
+at a Rackspace Cloud datacenter that provides OnMetal (as of this writing;
+IAD-only)
+
+Note: Please ensure you use the most recent CoreOS image ID as shown by
+`nova image-list` on your account. Example is only the most recent image as of
+this writing.
+
+`nova boot --flavor onmetal-io1 --image 64b92981-69c6-4e8a-828b-4a20a8db9adc \
+--key-name my-key-name --user-data ./onmetal-io1/cloud-config.yml mytestio1`
