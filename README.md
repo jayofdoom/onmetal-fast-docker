@@ -31,3 +31,10 @@ this writing.
 
 `nova boot --flavor onmetal-io1 --image 64b92981-69c6-4e8a-828b-4a20a8db9adc 
 --key-name my-key-name --user-data ./onmetal-io1/cloud-config.yml mytestio1`
+
+onmetal-memory1, onmetal-compute1
+---------------------------------
+
+For onmetal-memory1 and onmetal-compute1 nodes I would like to implement a
+similar backing change for docker, but instead have it run inside a ramdisk
+of some kind (tmpfs? ramfs? other?) but have not implemented it yet.
