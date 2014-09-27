@@ -29,7 +29,7 @@ Note: Please ensure you use the most recent CoreOS image ID as shown by
 `nova image-list` on your account. Example is only the most recent image as of
 this writing.
 
-`nova boot --flavor onmetal-io1 --image 64b92981-69c6-4e8a-828b-4a20a8db9adc 
+`nova boot --flavor onmetal-io1 --image 85e3d8d2-6d0f-4ded-bd55-0f13d3e57e69 
 --key-name my-key-name --user-data ./onmetal-io1/cloud-config.yml mytestio1`
 
 onmetal-memory1, onmetal-compute1
